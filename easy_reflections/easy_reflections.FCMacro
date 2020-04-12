@@ -1,0 +1,106 @@
+import FreeCADGui
+from PySide import QtGui, QtCore
+from pivy import coin
+import FreeCAD
+
+ICON_WIDTH = 480
+ICON_HEIGHT = 270
+PADDING = 30
+
+PATH = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Macro").GetString("MacroPath")+"/easy_reflections/"
+ENVIRONMENTS = ["industrial", "studio", "interior", "outside", "workshop"]
+
+WINDOW_X_POSITION = 250
+WINDOW_Y_POSITION = 250
+WINDOW_WIDTH = 900
+WINDOW_HEIGHT = 900
+WINDOW_TITLE = "Environment texture"
+EASY_REFLECTIONS_OBJECT_LABEL = "easy_reflections"
+
+# Check if there is already an "easy_reflections" object in the document. If there is none, create one
+alreadyOne = False
+for obj in FreeCAD.ActiveDocument.Objects:
+	if obj.Label == EASY_REFLECTIONS_OBJECT_LABEL:
+		alreadyOne = True
+		easy_reflections_object=obj
+
+if not alreadyOne:
+	easy_reflections_object=FreeCAD.ActiveDocument.addObject("App::FeaturePython","envF")
+	easy_reflections_object.Label = EASY_REFLECTIONS_OBJECT_LABEL
+	easy_reflections_object.addProperty("App::PropertyBool","envF")
+	easy_reflections_object.envF = False
+
+# The Qt dialog used by the user to choose the environment texture
+class EnvironmentDialog(QtGui.QDialog):
+	def __init__(self):
+		super(EnvironmentDialog, self).__init__()
+		self.initUI()
+	def initUI(self): 
+		buttons = []
+		for i in range(len(ENVIRONMENTS)):
+			buttons.append(self.makeImageButton(i))
+
+		buttonBox = QtGui.QDialogButtonBox()
+		buttonBox = QtGui.QDialogButtonBox(QtCore.Qt.Horizontal)
+		for b in buttons:
+			buttonBox.addButton(b, QtGui.QDialogButtonBox.ActionRole)
+		
+		removeEnvButton = QtGui.QPushButton("White environment texture")
+		removeEnvButton.clicked.connect(self.removeEnvClicked)
+		buttonBox.addButton(removeEnvButton, QtGui.QDialogButtonBox.ActionRole)
+
+		mainLayout = QtGui.QVBoxLayout()
+		mainLayout.addWidget(buttonBox)
+		self.setLayout(mainLayout)
+		# define window		xLoc,yLoc,xDim,yDim
+		self.setGeometry(WINDOW_X_POSITION, WINDOW_Y_POSITION, WINDOW_WIDTH, WINDOW_HEIGHT)
+		self.setWindowTitle(WINDOW_TITLE)
+		self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
+
+	def envClicked(self, index):			
+		# apply textures
+		tex =  coin.SoTexture2()
+		tex.filename = PATH+ENVIRONMENTS[index]+".jpg"
+		tc = coin.SoTextureCoordinateEnvironment()
+		for obj in FreeCAD.ActiveDocument.Objects:
+			rootnode = obj.ViewObject.RootNode
+			
+			if  easy_reflections_object.envF:
+				rootnode.replaceChild(1, tex)
+				rootnode.replaceChild(2, tc)
+			else:
+				rootnode.insertChild(tex,1) 
+				rootnode.insertChild(tc,2)
+		
+		easy_reflections_object.envF =True
+		self.close()
+
+	def removeEnvClicked(self):
+		tex =  coin.SoTexture2()
+		tex.filename = PATH+"white.jpg"
+		tc = coin.SoTextureCoordinateEnvironment()
+		for obj in FreeCAD.ActiveDocument.Objects:
+			rootnode = obj.ViewObject.RootNode			
+			if  easy_reflections_object.envF:
+				rootnode.replaceChild(1, tex)
+				rootnode.replaceChild(2, tc)
+			else:
+				print("There is no existing environment to remove")
+		easy_reflections_object.envF =True
+		self.close()
+
+	# Returns a Qt button with the according text and icon
+	def makeImageButton(self, index):
+		image = QtGui.QImage(PATH+"thumb/"+ENVIRONMENTS[index]+".png")
+		pixmap = QtGui.QPixmap.fromImage(image)
+		icon = QtGui.QIcon(pixmap)
+		optionButton = QtGui.QPushButton("")
+		optionButton.setStyleSheet("height: "+str(ICON_HEIGHT+PADDING)+"px;")
+		optionButton.setIconSize(QtCore.QSize(ICON_WIDTH, ICON_HEIGHT))
+		optionButton.setIcon(icon)
+		optionButton.clicked.connect(lambda: self.envClicked(index))
+		
+		return optionButton
+
+envDialog = EnvironmentDialog()
+envDialog.exec_()
