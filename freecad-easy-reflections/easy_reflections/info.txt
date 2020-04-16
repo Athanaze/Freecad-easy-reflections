@@ -1,0 +1,1 @@
+This folder is used by the easy_reflections macro to store the environments images and the thumbnails
